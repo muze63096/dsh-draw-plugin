@@ -1,4 +1,4 @@
-dsh-draw-plugin v0.5.5 —— DeepSeek Harness 画图插件
+dsh-draw-plugin v0.5.6 —— DeepSeek Harness 画图插件
 =====================================================
 
 【前提】
