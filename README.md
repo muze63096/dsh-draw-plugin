@@ -266,7 +266,8 @@ Q版  ：flat 2D anime illustration, chibi, super deformed, big head small body,
 
 **ComfyUI 读取不到模型 / 出图超时？**
 - 确认 ComfyUI 在跑、地址对（默认 `http://127.0.0.1:8188`）：浏览器打开它应该能看到 ComfyUI 界面。**没在跑就先点面板上的「启动」**（或双击安装目录里的 `启动ComfyUI.bat`）。
-- 报「请先拉取并选一个模型」= 面板还没拿到底模列表：先让 ComfyUI 跑起来，再点「读取模型 / LoRA」。
+- 报「请先拉取并选一个模型」= 面板还没拿到底模列表：先让 ComfyUI 跑起来。**v0.5.5 起只要服务在跑，面板会自己把模型列表拉回来**（不用再手点「读取模型 / LoRA」），并且会记住你上次选的底模。
+- **v0.5.5 起「启动」按钮真的能用了**：以前拼出来的命令以带引号的路径开头（`"D:\...\python.exe" "...\main.py" --listen ...`），PowerShell 会把 `--listen` 里的 `--` 当成运算符，直接 `ParserError` 秒退，面板却报"已启动"。现在改成 `& "…python.exe" "…main.py" --listen …`。
 - 列表是空的 → ComfyUI 里没放底模（应放 `models/checkpoints`）或 LoRA（应放 `models/loras`）。
 - 超时 → 显卡慢，或任务还堵在 ComfyUI 队列里；去 ComfyUI 界面看队列。
 - 报「自定义工作流不是合法 JSON」→ 你粘的可能是「导出」，要的是「**导出（API 格式）**」。

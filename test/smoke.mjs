@@ -346,6 +346,10 @@ writes.set(join(launchRoot, 'ComfyUI', 'main.py'), '')
 const died = await post(apiHandler, { action: 'comfy-launch', comfyDir: launchRoot })
 assert.equal(died.json.ok, false, '进程立刻退出时应报失败：' + died.body)
 assert.ok(String(died.json.error).includes('没能留住'), '错误应说明它没能留住：' + died.json.error)
+// 启动命令必须以 & 调用运算符开头：带引号的路径开头会让 PowerShell 把 --listen 里的 -- 当运算符
+const launchSpec = shellStub.started[shellStub.started.length - 1]
+assert.ok(String(launchSpec.command).indexOf('& "') === 0, 'comfy-launch 的命令要以 & " 开头：' + launchSpec.command)
+assert.ok(String(launchSpec.command).includes('--listen 127.0.0.1'), '应带上监听参数：' + launchSpec.command)
 
 // 21) 指到 ComfyUI Desktop（桌面包）目录时，要给对症的提示
 const desktop = await post(apiHandler, { action: 'comfy-launch', comfyDir: 'D:\\tool\\comfy\\Comfy Desktop' })
