@@ -279,7 +279,21 @@ assert.equal(unknown.json.ok, false, '未知动作应失败')
 assert.ok(String(unknown.json.error).includes('不认识'), '错误应说明宿主不认识该动作：' + unknown.json.error)
 assert.ok(!String(unknown.json.error).includes('提示词'), '未知动作不该被当成出图请求：' + unknown.json.error)
 
+// 16) 本机引擎目录要被记住（不然 DSH 每重启一次，面板里的「目录」就空一次）
+const comfyCustom = join(FAKE_HOME, 'ComfyUI-test')
+await post(apiHandler, { action: 'comfy-status', comfyDir: comfyCustom, baseUrl: 'http://127.0.0.1:8188' })
+const cfg3 = await post(apiHandler, { action: 'config' })
+assert.equal(cfg3.json.comfyDir, comfyCustom, 'config 应回记住的 ComfyUI 目录：' + cfg3.body)
+assert.equal(JSON.parse(writes.get(configPath)).comfyDir, comfyCustom, 'ComfyUI 目录应写进配置文件')
+
+const sdcppCustom = join(FAKE_HOME, 'sdcpp-test')
+await post(apiHandler, { action: 'sdcpp-status', sdcppDir: sdcppCustom })
+const cfg4 = await post(apiHandler, { action: 'config' })
+assert.equal(cfg4.json.sdcppDir, sdcppCustom, 'config 应回记住的 SD.cpp 目录：' + cfg4.body)
+assert.equal(JSON.parse(writes.get(configPath)).outDir, CUSTOM, '记目录不能把原来的保存位置冲掉')
+
 console.log('✓ smoke test passed')
 console.log('  导出形状 / 初始化写盘 / 两个路由 / 出图链路 / 图片读取 / 缺 Key 拒绝')
 console.log('  保存位置：默认 $DSH_HOME/dsh-draw、自定义生效并记住、写入边界随目录走')
 console.log('  ComfyUI 环境：状态检测 / 安装器可读 / 一键安装后台启动 / 缺安装时报错')
+console.log('  动作名兼容 / 未知动作明确报错 / 本机引擎目录被记住')

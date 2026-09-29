@@ -257,10 +257,14 @@ Q版  ：flat 2D anime illustration, chibi, super deformed, big head small body,
 看面板「保存到」下面那行灰字——它显示的是**实际落盘目录**。要换就在输入框里填，下次生成即生效，并且会被记住。
 
 **ComfyUI 读取不到模型 / 出图超时？**
-- 确认 ComfyUI 在跑、地址对（默认 `http://127.0.0.1:8188`）：浏览器打开它应该能看到 ComfyUI 界面。
+- 确认 ComfyUI 在跑、地址对（默认 `http://127.0.0.1:8188`）：浏览器打开它应该能看到 ComfyUI 界面。**没在跑就先点面板上的「启动」**（或双击安装目录里的 `启动ComfyUI.bat`）。
+- 报「请先拉取并选一个模型」= 面板还没拿到底模列表：先让 ComfyUI 跑起来，再点「读取模型 / LoRA」。
 - 列表是空的 → ComfyUI 里没放底模（应放 `models/checkpoints`）或 LoRA（应放 `models/loras`）。
 - 超时 → 显卡慢，或任务还堵在 ComfyUI 队列里；去 ComfyUI 界面看队列。
 - 报「自定义工作流不是合法 JSON」→ 你粘的可能是「导出」，要的是「**导出（API 格式）**」。
+
+**ComfyUI 装在别的盘（不在 `$DSH_HOME/comfyui`）？**
+在面板的「目录」里填它所在的文件夹（例如 `D:\AI\ComfyUI`），或者直接点检测结果里给出的候选目录。**v0.5.2 起这个目录会被记住**，DSH 重启后不用重填。
 
 **面板不出现 / 点了没反应？**
 1. 看工作区有没有 `.dsh-draw-init-error.txt`，里面有失败原因；
