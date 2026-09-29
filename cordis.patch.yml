@@ -7,9 +7,14 @@
 # inject 是必需的：它让 Cordis 等这三个服务就绪后再激活插件。
 # 少了它，apply 可能在 fs / shell / webServer 存在之前就跑，路由注册不上。
 #
-# config.outDir 是出图目录，相对工作区根（sandboxPolicy.resolve().workspaceRoot）；
-# 也可以写绝对路径。同一目录下还会生成：
+# config.outDir 是默认出图目录（面板里可改并会被记住）。
+# 留空 = $DSH_HOME/dsh-draw；相对路径按 $DSH_HOME 解析，也可以写绝对路径。
+#
+# config.comfyDir 是 ComfyUI 安装目录（面板里可临时覆盖）。留空 = $DSH_HOME/comfyui。
+#
+# 这些文件都放在 $DSH_HOME 下：
 #   .dsh-draw-gen.mjs        生成脚本（无依赖，可直接阅读）
+#   .dsh-draw-setup.mjs      一键安装 ComfyUI 的安装器（面板点「一键安装」时执行）
 #   .dsh-draw-key.txt        可选：把 API Key 写这里，面板就不用每次填
 #   .dsh-draw-init-error.txt 仅在初始化失败时出现，内容是失败原因
 - insert:

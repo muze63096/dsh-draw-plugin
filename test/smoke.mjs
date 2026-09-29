@@ -83,21 +83,22 @@ const shellStub = {
       sandboxPolicy: request.sandboxPolicy,
     }
   },
+  started: [],
+  start(spec) {
+    shellStub.started.push(spec)
+    return { status: 'running', exitCode: null, done: new Promise(() => {}), readOutput: () => ({ delta: '', lossy: false }), kill: () => true }
+  },
   async run(spec) {
     const parsed = JSON.parse(spec.stdin)
+    const ok = (text) => ({
+      exitCode: 0, signal: null, timedOut: false, aborted: false, timeoutMs: spec.timeoutMs,
+      stdout: { text, truncated: false }, stderr: { text: '', truncated: false },
+    })
+    // 探活 / 列表请求不是出图，要分开处理
+    if (parsed.mode === 'ping') return ok(JSON.stringify({ ok: false, error: 'stub: ComfyUI 没在跑' }))
+    if (parsed.mode === 'probe') return ok(JSON.stringify({ ok: true, checkpoints: [], loras: [], samplers: ['euler'] }))
     const file = join(parsed.outDir, 'img-' + parsed.seed + '.jpg')
-    return {
-      exitCode: 0,
-      signal: null,
-      timedOut: false,
-      aborted: false,
-      timeoutMs: spec.timeoutMs,
-      stdout: {
-        text: JSON.stringify({ ok: true, path: file, type: 'image/jpeg', bytes: IMAGE_BYTES.length, ms: 12, attempts: 1 }),
-        truncated: false,
-      },
-      stderr: { text: '', truncated: false },
-    }
+    return ok(JSON.stringify({ ok: true, path: file, type: 'image/jpeg', bytes: IMAGE_BYTES.length, ms: 12, attempts: 1 }))
   },
 }
 
@@ -243,6 +244,26 @@ const noKey = await post(apiHandler, {
 assert.equal(noKey.json.ok, false, '缺 Key 时应失败')
 assert.ok(noKey.json.error.includes('API Key'), '错误信息应提示需要 Key：' + noKey.json.error)
 
+// 10) ComfyUI 环境：状态检测（并确认宿主能读到一键安装器源码）
+const envStatus = await post(apiHandler, { action: 'comfy-status' })
+assert.equal(envStatus.json.ok, true, 'comfy-status 应成功：' + envStatus.body)
+assert.equal(envStatus.json.installerReady, true, '应能读到 lib/setup.mjs —— 一键安装器要能工作')
+assert.equal(envStatus.json.installed.comfy, false, 'stub 环境里不该检测到已安装')
+assert.equal(envStatus.json.running, false, 'stub 环境里 ComfyUI 不该是在跑')
+
+// 11) 一键安装：把安装器写到 $DSH_HOME，以后台进程启动（不能阻塞请求）
+const setupResult = await post(apiHandler, { action: 'comfy-setup', comfyDir: 'comfy-test' })
+assert.equal(setupResult.json.ok, true, 'comfy-setup 应能启动：' + setupResult.body)
+assert.equal(setupResult.json.started, true)
+assert.ok(writes.has(join(FAKE_HOME, '.dsh-draw-setup.mjs')), '安装器应被写到 $DSH_HOME')
+assert.ok(shellStub.started.length >= 1, '安装应作为后台进程启动')
+
+// 12) 启动 ComfyUI：目录里没有时给明确报错
+const launchMissing = await post(apiHandler, { action: 'comfy-launch', comfyDir: 'nowhere' })
+assert.equal(launchMissing.json.ok, false, '目录里没有 ComfyUI 时应失败')
+assert.ok(String(launchMissing.json.error).includes('没有装好的'), '错误应说明目录里没有 ComfyUI：' + launchMissing.json.error)
+
 console.log('✓ smoke test passed')
 console.log('  导出形状 / 初始化写盘 / 两个路由 / 出图链路 / 图片读取 / 缺 Key 拒绝')
 console.log('  保存位置：默认 $DSH_HOME/dsh-draw、自定义生效并记住、写入边界随目录走')
+console.log('  ComfyUI 环境：状态检测 / 安装器可读 / 一键安装后台启动 / 缺安装时报错')

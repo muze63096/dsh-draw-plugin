@@ -136,6 +136,36 @@ Key 在硅基流动控制台创建（[siliconflow.cn](https://siliconflow.cn)）
 - 插件**不代管** ComfyUI——它得先跑着。
 - 中文提示词默认会译成英文再送（多数 SD/SDXL 的文本编码器对英文更友好）；底模如果吃中文，把「中文自动译成英文」关掉即可。
 
+### 一键安装 ComfyUI（给没有环境的用户）
+
+选了 ComfyUI 引擎后，面板里会出现一张「环境」卡片：
+
+| 按钮 | 作用 |
+| --- | --- |
+| **一键安装 ComfyUI** | 全自动装好整套环境：嵌入式 Python + ComfyUI + CUDA 版 PyTorch + 默认二次元底模 |
+| **启动 ComfyUI** | 启动服务；同时会在安装目录生成 `启动ComfyUI.bat`，以后双击即可 |
+| **重新检测** | 立刻刷新状态（平时每 2 秒自动刷新一次） |
+
+安装过程显示进度（第几步 / 百分比 / 当前在做什么），**断了可以重来**——已装好的步骤会自动跳过。
+
+**它会下载什么**（全部走国内可达的源，GitHub 直连在很多网络下是断的）：
+
+| 组件 | 来源 | 体积 |
+| --- | --- | --- |
+| 嵌入式 Python 3.12 | 华为云镜像 | ~11 MB |
+| pip | 清华 PyPI | ~2 MB |
+| ComfyUI 源码 | Gitee 镜像 | ~12 MB |
+| PyTorch（CUDA 12.8）+ torchvision/audio | pytorch 官方源，**16 线程下载** | ~2.7 GB |
+| 其余依赖 | 清华 PyPI | ~300 MB |
+| 默认底模（SD1.5 二次元） | ModelScope | ~2 GB |
+
+**前提与限制**：
+
+- 目前**只支持 Windows + NVIDIA**。脚本会先用 `nvidia-smi` 检测，没有 N 卡就直接告诉你，不会装到一半才失败。
+- 需要 **~12 GB 磁盘**，首次约 **10~20 分钟**（16 线程下载，实测能跑满带宽）。
+- 安装位置默认 `$DSH_HOME/comfyui`，面板里可改。
+- **已经有 ComfyUI 的用户不用重装**：把它的目录填进「安装位置」→ 点「重新检测」，插件会直接接管（检测到别处的现成安装时，卡片还会给出「用检测到的那个」按钮）。
+
 ---
 
 ## 画风：Q版 / 正常
@@ -177,6 +207,7 @@ Q版  ：flat 2D anime illustration, chibi, super deformed, big head small body,
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
 | `outDir` | 空 | 默认保存位置，留空 = `$DSH_HOME/dsh-draw`。 |
+| `comfyDir` | 空 | ComfyUI 安装目录，留空 = `$DSH_HOME/comfyui`。面板里可临时覆盖。 |
 
 ---
 
