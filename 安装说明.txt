@@ -25,6 +25,12 @@ dsh-draw-plugin v0.2.0 —— DeepSeek Harness 画图插件
   · 想更接近 2D 插画风格：切到「硅基流动」并填自己的 API Key（Kolors 等）。
   · 「固定角色」里写一段固定描述，每张图都会带上，适合反复画同一个角色。
 
+【进阶】
+  · 引擎可切「硅基流动」（填自己的 API Key）或「自定义接口」（OpenAI 兼容端点）。
+  · 「ComfyUI（本机）」模式：连你本机跑着的 ComfyUI，好处是**能挂 LoRA**、
+    能调权重/步数，画风可控得多；也支持粘贴自己的 API 格式工作流。
+    （需要你先自己装好并启动 ComfyUI，默认地址 http://127.0.0.1:8188）
+
 【出图目录】
   默认 $DSH_HOME/dsh-draw（Windows 是 C:\Users\<你>\.dsh\dsh-draw）。
   面板里的「保存到」可以改，改过会记住。

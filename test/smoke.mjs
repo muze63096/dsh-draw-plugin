@@ -12,6 +12,8 @@
  * 运行：node test/smoke.mjs
  */
 import assert from 'node:assert/strict'
+import { writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -174,6 +176,12 @@ assert.ok(writes.has(scriptPath), '应把生成脚本写进 $DSH_HOME：' + scri
 const script = writes.get(scriptPath)
 assert.ok(script.includes('pollinations'), '脚本应包含 pollinations 分支')
 assert.ok(script.includes('images/generations'), '脚本应包含远程引擎分支')
+assert.ok(script.includes('fromComfyUI'), '脚本应包含 ComfyUI 分支')
+
+// 顺手落一份生成脚本，便于外部做 `node --check`
+const generatedCopy = join(tmpdir(), 'dsh-draw-generated.mjs')
+writeFileSync(generatedCopy, script, 'utf8')
+console.log('（生成脚本已另存一份，可 node --check：' + generatedCopy + '）')
 
 // 3) 路由
 assert.ok(routes.has('exact /dsh-draw/api'), '应注册 POST /dsh-draw/api')

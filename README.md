@@ -36,7 +36,8 @@
 
 ## 特性
 
-- **三个引擎可选**，Key 由使用者自己填：免费 Pollinations（无需 Key）／硅基流动（Kolors 等）／任意 OpenAI 兼容的 `/images/generations` 端点。
+- **四个引擎可选**，Key 由使用者自己填：免费 Pollinations（无需 Key）／硅基流动（Kolors 等）／任意 OpenAI 兼容的 `/images/generations` 端点／**本机 ComfyUI**。
+- **ComfyUI 模式**：直接连你本机的 ComfyUI，**能挂 LoRA**、调权重/步数/CFG；也可以粘贴自己「导出（API格式）」的工作流，插件负责把提示词注进去。
 - **Q版 / 正常两档画风**，画风词**前置**（实测：放句尾会被稀释成 3D 写实风）。
 - **中文提示词自动译成英文**（可关）。实测免费引擎吃到中文会整体切到写实路线并丢掉画风词，所以默认开启翻译，并会把你**实际发送的提示词**显示出来。
 - **限流自动重试**：免费引擎的 402/429/500 会退避重试 4 次，不是一撞就死。
@@ -100,10 +101,40 @@ dsh plugin --profile web add -w "D:\path\to\dsh-draw-plugin"
 | **免费 Pollinations** | 否 | `image.pollinations.ai` | `turbo`（二次元更好）、`flux`（写实更好） |
 | **硅基流动** | 是 | `https://api.siliconflow.cn/v1` | `Kwai-Kolors/Kolors`、`Tongyi-MAI/Z-Image-Turbo`、`Qwen/Qwen-Image` |
 | **自定义接口** | 是 | 你自己填 | 任何 OpenAI 兼容的 `/images/generations` 模型（`dall-e-3` 等） |
+| **ComfyUI（本机）** | 否 | `http://127.0.0.1:8188` | 你本机装的任何底模 + LoRA |
 
 Key 在硅基流动控制台创建（[siliconflow.cn](https://siliconflow.cn)）。**它和 DeepSeek 的 API Key 是两家公司、两套余额**，互不通用。
 
 自定义接口会**先发 `image_size`**（硅基流动的写法），若对方返回 400/422 再**自动改用 `size`**（OpenAI 的写法）重发；返回体里的 `url` 和 `b64_json` 两种都支持。
+
+---
+
+## ComfyUI 模式（本机出图 + LoRA）
+
+想精确复刻某种画风（尤其二次元），**LoRA 是最有效的办法**——而 LoRA 只能在你自己的推理端加载，所以这个模式连的是**你本机的 ComfyUI**。
+
+**前提**：本机装好 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 并启动（默认 `http://127.0.0.1:8188`）。
+
+面板里的用法：
+
+1. 引擎选 **ComfyUI（本机）**
+2. 点 **读取模型 / LoRA** —— 插件去问 ComfyUI 的 `/object_info`，把底模与 LoRA 列表拉进下拉框
+3. 选底模、选 LoRA、调权重（默认 0.8）/ 步数 / CFG
+4. 生成
+
+**两种工作流来源**：
+
+| 方式 | 说明 |
+| --- | --- |
+| 自动（默认） | 用你选的模型/LoRA 现拼一个标准 txt2img 工作流：`CheckpointLoader →（LoraLoader）→ CLIPTextEncode ×2 → KSampler → VAEDecode → SaveImage` |
+| 自定义 | 把 ComfyUI 里「导出（API 格式）」的 JSON 粘进「自定义工作流」。提示词自动注入：<br>① 工作流里写了 `{{prompt}}` / `{{negative}}` / `%prompt%` → 直接替换占位符<br>② 没写占位符 → 自动沿 `KSampler` 的 `positive`/`negative` 连线找到文本节点再替换 |
+
+出图后结果区会显示一行「**工作流：…**」，告诉你这次是怎么注进去的。
+
+**注意**：
+- 出图速度取决于显卡，可能几十秒到几分钟（插件最多等 240 秒）。
+- 插件**不代管** ComfyUI——它得先跑着。
+- 中文提示词默认会译成英文再送（多数 SD/SDXL 的文本编码器对英文更友好）；底模如果吃中文，把「中文自动译成英文」关掉即可。
 
 ---
 
@@ -174,8 +205,13 @@ Q版  ：flat 2D anime illustration, chibi, super deformed, big head small body,
 **图存哪了？想换地方？**
 看面板「保存到」下面那行灰字——它显示的是**实际落盘目录**。要换就在输入框里填，下次生成即生效，并且会被记住。
 
-**面板不出现 / 点了没反应？**
-1. 看工作区有没有 `.dsh-draw-init-error.txt`，里面有失败原因；
+**ComfyUI 读取不到模型 / 出图超时？**
+- 确认 ComfyUI 在跑、地址对（默认 `http://127.0.0.1:8188`）：浏览器打开它应该能看到 ComfyUI 界面。
+- 列表是空的 → ComfyUI 里没放底模（应放 `models/checkpoints`）或 LoRA（应放 `models/loras`）。
+- 超时 → 显卡慢，或任务还堵在 ComfyUI 队列里；去 ComfyUI 界面看队列。
+- 报「自定义工作流不是合法 JSON」→ 你粘的可能是「导出」，要的是「**导出（API 格式）**」。
+
+**面板不出现 / 点了没反应？**1. 看工作区有没有 `.dsh-draw-init-error.txt`，里面有失败原因；
 2. 确认 `cordis.patch.yml` 里的 `inject` 写了 `fs`/`shell`/`webServer`；
 3. 装完**必须重启** web app。
 
@@ -204,13 +240,16 @@ dsh-draw-plugin/
 ├── lib/
 │   ├── index.js          # 宿主半边（ESM）：写脚本、跑脚本、挂路由、翻译
 │   └── client.js         # 客户端半边：__ModuleLoader__ 封装 + 面板 UI
-├── test/smoke.mjs        # 冒烟测试：stub 掉服务，验证初始化与两个路由
+├── test/
+│   ├── smoke.mjs          # 冒烟测试：stub 服务，验证导出/初始化/两个路由/出图链路/保存位置
+│   ├── mock-comfyui.mjs   # 假 ComfyUI（/object_info、/prompt、/history、/view）
+│   └── comfyui.test.mjs   # 拿假 ComfyUI 真跑生成脚本：探活、LoRA、轮询、取图、提示词注入
 └── LICENSE
 ```
 
 ```bash
 npm run check   # 语法检查
-node test/smoke.mjs
+npm test        # 冒烟 + ComfyUI 集成测试（都不需要联网、不需要显卡）
 ```
 
 改画风词不用改代码——面板「高级设置」里当场就能改。
