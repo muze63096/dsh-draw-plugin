@@ -128,7 +128,7 @@ const services = {
   shell: shellStub,
   webServer: webServerStub,
   sandboxPolicy: { resolve: () => ({ mode: 'workspace-write', workspaceRoot: WORKSPACE }) },
-  // llm / agentDefaultModel 故意不给：翻译应被安全跳过
+  // llm / agentDefaultModel 先不给：默认路径下翻译应被安全跳过（下面 22~24 会装上假的）
 }
 
 const ctx = {
@@ -352,9 +352,73 @@ const desktop = await post(apiHandler, { action: 'comfy-launch', comfyDir: 'D:\\
 assert.equal(desktop.json.ok, false, '桌面包目录不该被当成便携版')
 assert.ok(String(desktop.json.error).includes('Desktop'), '应提示这是桌面包、不用填目录：' + desktop.json.error)
 
+// ── 翻译这条路（实测坑：deepseek-flash 默认 effort=high，思考吃满 maxTokens → 译文是空的）──
+services.agentDefaultModel = { currentSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-flash' }) }
+const llmCalls = []
+/** 假模型：没显式关掉思考就只吐 reasoning + max-tokens（复刻真实故障）。 */
+function fakeLlm(make) {
+  services.llm = {
+    stream(options) {
+      llmCalls.push(options)
+      return (async function* () { yield* make(options) })()
+    },
+  }
+}
+
+// 22) 翻译必须显式关掉思考，并且译文要真的进到发给画图模型的载荷里
+fakeLlm(function* (options) {
+  if (options.reasoningEffort !== 'off') {
+    yield { type: 'reasoning-delta', text: '想很久…' }
+    yield { type: 'finish', reason: { kind: 'max-tokens' } }
+    return
+  }
+  yield { type: 'text-delta', text: 'blue long hair, whale maid, white lace maid dress' }
+  yield { type: 'finish', reason: { kind: 'stop' } }
+})
+const translatedRun = await post(apiHandler, {
+  engine: 'pollinations', model: 'turbo', text: '蓝色长发的鲸鱼女仆娘，白色蕾丝女仆装',
+  prefix: 'flat 2D anime, ', translate: true, width: 512, height: 512,
+})
+assert.equal(translatedRun.json.ok, true, '翻译后出图应成功：' + translatedRun.body)
+assert.equal(llmCalls.length, 1, '应只调一次模型')
+assert.equal(llmCalls[0].reasoningEffort, 'off', '翻译必须显式关掉思考：' + JSON.stringify(llmCalls[0].reasoningEffort))
+assert.equal(translatedRun.json.translateFailed, false, '不该报翻译失败')
+assert.ok(String(translatedRun.json.translated).includes('blue long hair'), '应拿到译文：' + translatedRun.json.translated)
+assert.ok(String(shellCalls[shellCalls.length - 1].stdin).includes('blue long hair'), '发给画图模型的应是英文')
+
+// 23) 真的拿不到译文时，原因要带回面板（不能只说"翻译失败"）
+fakeLlm(function* () {
+  yield { type: 'finish', reason: { kind: 'max-tokens' } }
+})
+const noText = await post(apiHandler, {
+  engine: 'pollinations', model: 'turbo', text: '蓝色的猫', prefix: 'flat 2D anime, ', translate: true, width: 512, height: 512,
+})
+assert.equal(noText.json.translateFailed, true, '没译文就该标记失败')
+assert.ok(String(noText.json.translateError).includes('思考'), '应说明是思考吃满了上限：' + noText.json.translateError)
+
+// 24) 适配器不认 reasoningEffort 时要能退回默认再试一次
+let fallbackCalls = 0
+services.llm = {
+  stream(options) {
+    fallbackCalls += 1
+    if (options.reasoningEffort) throw new Error('unsupported reasoningEffort')
+    return (async function* () {
+      yield { type: 'text-delta', text: 'blue cat' }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    })()
+  },
+}
+const retried = await post(apiHandler, {
+  engine: 'pollinations', model: 'turbo', text: '蓝色的猫', prefix: 'flat 2D anime, ', translate: true, width: 512, height: 512,
+})
+assert.equal(fallbackCalls, 2, '第一次被拒后应退回去掉 effort 再试一次')
+assert.equal(retried.json.translateFailed, false, '退回后应翻译成功：' + retried.body)
+assert.ok(String(retried.json.translated).includes('blue cat'), '退回路径也要拿到译文')
+
 console.log('✓ smoke test passed')
 console.log('  导出形状 / 初始化写盘 / 两个路由 / 出图链路 / 图片读取 / 缺 Key 拒绝')
 console.log('  保存位置：默认 $DSH_HOME/dsh-draw、自定义生效并记住、写入边界随目录走')
 console.log('  ComfyUI 环境：状态检测 / 安装器可读 / 一键安装后台启动 / 缺安装时报错')
 console.log('  动作名兼容 / 未知动作明确报错 / 本机引擎目录被记住')
 console.log('  shell 只有 start 也能跑 / 没有 run+start 时点名报错 / python_embeded 布局 / 启动失败如实报错')
+console.log('  翻译：显式关掉思考 / 失败原因带回面板 / 不认 effort 时退回重试')

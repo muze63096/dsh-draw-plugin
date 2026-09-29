@@ -250,6 +250,14 @@ Q版  ：flat 2D anime illustration, chibi, super deformed, big head small body,
 **一直报 `HTTP 402` / 429？**
 免费引擎的限流很紧（上游有每分钟额度）。插件已经自动退避重试 4 次，还是失败就隔半分钟再点一次。想稳定出图就换硅基流动。
 
+**出来的图跟我写的中文提示词差很远？**
+本机 ComfyUI / SD.cpp 用的底模是按 **Danbooru 英文标签**训练的，**它看不懂中文**——中文进去等于一堆无意义的 token，头发颜色、服装、物种全靠模型瞎猜（实测："蓝色长发鲸鱼女仆"会出来银白长发 + 和服）。
+- 勾上「中文自动译成英文」，或干脆用英文标签写（`1girl, solo, blue long hair, whale tail, white lace maid dress, arms crossed, pout, blush`）。
+- 生成结果下方会显示**实际发送**的提示词，先看那一行是不是中文——是中文就是翻译这一步没成功，下面会直接写出原因。
+- **v0.5.4 修了一个会导致翻译静默失败的坑**：宿主的推理模型（如 `deepseek-flash`）默认 `reasoningEffort=high`，思考会把 `maxTokens` 吃光，一个字的译文都不吐、`finish` 是 `max-tokens`。现在翻译调用显式关掉思考（off），失败也会把原因显示在面板上。
+- 别在提示词里写"说 XXX"这种**要画面出字**的要求：扩散模型不会写字，只会糊出一坨假字（想要情绪就用 `pout, angry, blush`）。
+- 想更稳：给关键属性加权重 `(blue hair:1.3), (whale tail:1.2)`，负面里排掉不想要的 `cat ears, animal ears`。
+
 **出来的图是写实照片，不是我写的画风？**
 两种原因：中文提示词没翻译（检查「中文自动译成英文」是否勾上，生成结果下方会显示"实际发送"的提示词），或者提示词里场景描述压过了画风词。
 
