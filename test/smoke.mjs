@@ -263,6 +263,22 @@ const launchMissing = await post(apiHandler, { action: 'comfy-launch', comfyDir:
 assert.equal(launchMissing.json.ok, false, '目录里没有 ComfyUI 时应失败')
 assert.ok(String(launchMissing.json.error).includes('没有装好的'), '错误应说明目录里没有 ComfyUI：' + launchMissing.json.error)
 
+// 13) 老面板兼容：早期版本发出的 comfyui-status 要等价于 comfy-status
+const legacyStatus = await post(apiHandler, { action: 'comfyui-status' })
+assert.equal(legacyStatus.json.ok, true, 'comfyui-status 应被折成 comfy-status：' + legacyStatus.body)
+assert.equal(legacyStatus.json.installerReady, true, '兼容路径也应返回真实检测结果')
+
+// 14) 轻量引擎：状态检测同样要能读到安装器
+const liteStatus = await post(apiHandler, { action: 'sdcpp-status' })
+assert.equal(liteStatus.json.ok, true, 'sdcpp-status 应成功：' + liteStatus.body)
+assert.equal(liteStatus.json.installerReady, true, '应能读到 lib/setup-sdcpp.mjs')
+
+// 15) 真·未知动作：必须明确报错，绝不能掉进"出图"分支（否则会误报"提示词是空的"）
+const unknown = await post(apiHandler, { action: 'nonsense-action' })
+assert.equal(unknown.json.ok, false, '未知动作应失败')
+assert.ok(String(unknown.json.error).includes('不认识'), '错误应说明宿主不认识该动作：' + unknown.json.error)
+assert.ok(!String(unknown.json.error).includes('提示词'), '未知动作不该被当成出图请求：' + unknown.json.error)
+
 console.log('✓ smoke test passed')
 console.log('  导出形状 / 初始化写盘 / 两个路由 / 出图链路 / 图片读取 / 缺 Key 拒绝')
 console.log('  保存位置：默认 $DSH_HOME/dsh-draw、自定义生效并记住、写入边界随目录走')

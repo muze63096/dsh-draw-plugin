@@ -262,9 +262,14 @@ Q版  ：flat 2D anime illustration, chibi, super deformed, big head small body,
 - 超时 → 显卡慢，或任务还堵在 ComfyUI 队列里；去 ComfyUI 界面看队列。
 - 报「自定义工作流不是合法 JSON」→ 你粘的可能是「导出」，要的是「**导出（API 格式）**」。
 
-**面板不出现 / 点了没反应？**1. 看工作区有没有 `.dsh-draw-init-error.txt`，里面有失败原因；
+**面板不出现 / 点了没反应？**
+1. 看工作区有没有 `.dsh-draw-init-error.txt`，里面有失败原因；
 2. 确认 `cordis.patch.yml` 里的 `inject` 写了 `fs`/`shell`/`webServer`；
 3. 装完**必须重启** web app。
+
+**升级插件后，面板报「检测失败：提示词是空的」？**
+宿主半边是**进程启动时**加载进内存的（Node 的模块缓存），之后你改磁盘上的 `lib/` 它也不会重载；而浏览器页面刷新后拿到的是**新的**面板代码。两边版本一错位，面板发来的 `action` 宿主不认识，请求就掉进了「出图」分支——没有提示词，于是报「提示词是空的」。
+**关掉 DSH 进程重新启动**即可（只刷新浏览器页面不够）。v0.5.1 起，宿主对不认识的 `action` 会直接回一句「宿主不认识动作……」，不会再伪装成"提示词是空的"；同时兼容旧面板发出的 `comfyui-status` 写法。
 
 **为什么要写一个 `.mjs` 脚本再跑，宿主不直接请求？**
 宿主运行在受限求值环境里没有 `fetch`；而 Windows 沙箱下 `curl`、PowerShell 的 `.NET` 走的是系统 TLS（schannel），会被拒绝并报 `SEC_E_NO_CREDENTIALS`。Node 自带 OpenSSL，出网正常。所以出网这件事交给 Node 脚本做。

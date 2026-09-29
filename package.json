@@ -1,6 +1,6 @@
 {
   "name": "dsh-draw-plugin",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "DeepSeek Harness 画图插件：侧边栏整页面板，写提示词即出图，Q版/正常两档画风，三个出图引擎可选（免费 Pollinations / 硅基流动 Kolors / 任意 OpenAI 兼容接口），Key 由使用者自己填。A text-to-image panel plugin for DeepSeek Harness with pluggable providers.",
   "keywords": [
     "dsh-plugin",
