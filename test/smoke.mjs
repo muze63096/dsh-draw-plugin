@@ -86,7 +86,21 @@ const shellStub = {
   started: [],
   start(spec) {
     shellStub.started.push(spec)
-    return { status: 'running', exitCode: null, done: new Promise(() => {}), readOutput: () => ({ delta: '', lossy: false }), kill: () => true }
+    let parsed = {}
+    try { parsed = JSON.parse(spec.stdin) } catch (error) { parsed = {} }
+    const completed = (text) => ({
+      status: 'completed', exitCode: 0, signal: null, done: Promise.resolve(),
+      readOutput: () => ({ delta: text, lossy: false }), kill: () => true,
+    })
+    // 启动本机引擎的命令：假装"立刻就死了"，用来验证插件会不会如实报错
+    if (/main\.py|sd-server\.exe/.test(String(spec.command))) {
+      return completed('stub: 引擎启动即退出')
+    }
+    // 探活 / 列表：立刻跑完并给出输出（run 缺失时的回退路径要靠它）
+    if (parsed.mode === 'ping') return completed(JSON.stringify({ ok: false, error: 'stub: ComfyUI 没在跑' }))
+    if (parsed.mode === 'probe') return completed(JSON.stringify({ ok: true, checkpoints: [], loras: [], samplers: ['euler'] }))
+    // 安装这类长活：一直跑着
+    return { status: 'running', exitCode: null, signal: null, done: new Promise(() => {}), readOutput: () => ({ delta: '', lossy: false }), kill: () => true }
   },
   async run(spec) {
     const parsed = JSON.parse(spec.stdin)
@@ -292,8 +306,55 @@ const cfg4 = await post(apiHandler, { action: 'config' })
 assert.equal(cfg4.json.sdcppDir, sdcppCustom, 'config 应回记住的 SD.cpp 目录：' + cfg4.body)
 assert.equal(JSON.parse(writes.get(configPath)).outDir, CUSTOM, '记目录不能把原来的保存位置冲掉')
 
+// 17) 有的 DSH 版本 shell 服务只有 start 没有 run：要能退回 start 干活
+const savedRun = shellStub.run
+shellStub.run = undefined
+try {
+  const fallback = await post(apiHandler, { action: 'comfy-models', baseUrl: 'http://127.0.0.1:8188' })
+  assert.equal(fallback.json.ok, true, '缺 run 时应退回 start：' + fallback.body)
+  assert.ok(Array.isArray(fallback.json.checkpoints), '退回路径也要拿到模型列表')
+} finally {
+  shellStub.run = savedRun
+}
+
+// 18) run / start 都没有：必须说清"宿主 shell 服务到底提供了什么"，别让人瞎猜
+const savedStart = shellStub.start
+shellStub.run = undefined
+shellStub.start = undefined
+try {
+  const none = await post(apiHandler, { action: 'comfy-status', baseUrl: 'http://127.0.0.1:8188' })
+  assert.equal(none.json.ok, false, '没有任何执行方法时应失败')
+  assert.ok(String(none.json.error).includes('run'), '错误里应点名 run：' + none.json.error)
+  assert.ok(String(none.json.error).includes('resolve'), '错误里应列出它实际提供的方法：' + none.json.error)
+} finally {
+  shellStub.run = savedRun
+  shellStub.start = savedStart
+}
+
+// 19) 官方便携包是 python_embeded 布局，也要认出来
+const portableRoot = join(FAKE_HOME, 'ComfyUI_windows_portable')
+writes.set(join(portableRoot, 'python_embeded', 'python.exe'), '')
+writes.set(join(portableRoot, 'ComfyUI', 'main.py'), '')
+const portable = await post(apiHandler, { action: 'comfy-status', comfyDir: portableRoot, baseUrl: 'http://127.0.0.1:8188' })
+assert.equal(portable.json.installed.python, true, 'python_embeded 布局应被认成已安装：' + portable.body)
+assert.equal(portable.json.installed.comfy, true, 'python_embeded 布局应被认成已安装')
+
+// 20) 启动的进程立刻死掉时，必须如实报错（不能显示"已启动"骗人）
+const launchRoot = join(FAKE_HOME, 'ComfyUI-launch')
+writes.set(join(launchRoot, 'python', 'python.exe'), '')
+writes.set(join(launchRoot, 'ComfyUI', 'main.py'), '')
+const died = await post(apiHandler, { action: 'comfy-launch', comfyDir: launchRoot })
+assert.equal(died.json.ok, false, '进程立刻退出时应报失败：' + died.body)
+assert.ok(String(died.json.error).includes('没能留住'), '错误应说明它没能留住：' + died.json.error)
+
+// 21) 指到 ComfyUI Desktop（桌面包）目录时，要给对症的提示
+const desktop = await post(apiHandler, { action: 'comfy-launch', comfyDir: 'D:\\tool\\comfy\\Comfy Desktop' })
+assert.equal(desktop.json.ok, false, '桌面包目录不该被当成便携版')
+assert.ok(String(desktop.json.error).includes('Desktop'), '应提示这是桌面包、不用填目录：' + desktop.json.error)
+
 console.log('✓ smoke test passed')
 console.log('  导出形状 / 初始化写盘 / 两个路由 / 出图链路 / 图片读取 / 缺 Key 拒绝')
 console.log('  保存位置：默认 $DSH_HOME/dsh-draw、自定义生效并记住、写入边界随目录走')
 console.log('  ComfyUI 环境：状态检测 / 安装器可读 / 一键安装后台启动 / 缺安装时报错')
 console.log('  动作名兼容 / 未知动作明确报错 / 本机引擎目录被记住')
+console.log('  shell 只有 start 也能跑 / 没有 run+start 时点名报错 / python_embeded 布局 / 启动失败如实报错')

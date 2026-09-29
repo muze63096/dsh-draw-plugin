@@ -266,6 +266,16 @@ Q版  ：flat 2D anime illustration, chibi, super deformed, big head small body,
 **ComfyUI 装在别的盘（不在 `$DSH_HOME/comfyui`）？**
 在面板的「目录」里填它所在的文件夹（例如 `D:\AI\ComfyUI`），或者直接点检测结果里给出的候选目录。**v0.5.2 起这个目录会被记住**，DSH 重启后不用重填。
 
+**「启动失败：这个目录里没有装好的 ComfyUI」？**
+插件认这两种布局：
+- 自装版 / 插件一键装的：`<目录>\python\python.exe` + `<目录>\ComfyUI\main.py`
+- ComfyUI **官方便携包**：`<目录>\python_embeded\python.exe` + `<目录>\ComfyUI\main.py`（目录填到最外层那个文件夹）
+
+如果你用的是 **ComfyUI Desktop（桌面包）** 或整合包，**不用在这里填目录**：直接打开那个应用，它自己就监听 `8188`，然后回面板点「读取模型 / LoRA」。面板出图只认「服务地址」，安装位置只服务于「一键安装 / 启动」。
+
+**面板报「检测失败：shell.run is not a function」？**
+插件要借宿主的 `ctx.shell` 跑一个 Node 探活脚本，而不同 DSH 版本给的方法名不一样。**v0.5.3 起**会自动退回 `start`（先起进程、等它结束、读输出），多数版本都能干活。要是还报错，面板会把宿主 shell 服务**实际提供的方法名**列出来——把那句话发给插件作者即可。
+
 **面板不出现 / 点了没反应？**
 1. 看工作区有没有 `.dsh-draw-init-error.txt`，里面有失败原因；
 2. 确认 `cordis.patch.yml` 里的 `inject` 写了 `fs`/`shell`/`webServer`；

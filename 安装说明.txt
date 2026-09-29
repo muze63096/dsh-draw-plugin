@@ -1,4 +1,4 @@
-dsh-draw-plugin v0.5.2 —— DeepSeek Harness 画图插件
+dsh-draw-plugin v0.5.3 —— DeepSeek Harness 画图插件
 =====================================================
 
 【前提】
@@ -35,6 +35,12 @@ dsh-draw-plugin v0.5.2 —— DeepSeek Harness 画图插件
   · 完整版（默认）：本机 ComfyUI —— 一键安装约 5GB（含 CUDA 版 PyTorch）
     + 2GB 模型，10~20 分钟；换来完整节点生态、工作流、面板里选 LoRA。
   两个版本**代码完全相同**，区别只是默认选中哪个引擎，面板里随时能切换。
+
+  · 已经自己装过 ComfyUI 的：不用重装，把「安装位置」填到你的安装目录即可
+    （自装版填有 python\ 和 ComfyUI\ 的那层；官方便携包填有 python_embeded\
+    的那层）。填一次会被记住。
+  · 用的是 ComfyUI Desktop（桌面包）或整合包的：**不用填目录**——直接打开
+    那个应用（它自己就监听 8188），回面板点「读取模型 / LoRA」就能画。
 
 【出图目录】
   默认 $DSH_HOME/dsh-draw（Windows 是 C:\Users\<你>\.dsh\dsh-draw）。
