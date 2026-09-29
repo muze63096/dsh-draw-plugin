@@ -1,0 +1,33 @@
+dsh-draw-plugin v0.2.0 —— DeepSeek Harness 画图插件
+=====================================================
+
+【前提】
+  这是 DSH（DeepSeek Harness）的插件，不是独立软件，需要先装好 DSH 才能用。
+
+【安装】
+  在任意目录（不要在插件文件夹里面）执行下面这一行：
+
+      dsh plugin --profile web add -w "<本文件夹的完整路径>"
+
+  例如把文件夹放在 D:\Downloads\dsh-draw-plugin，就执行：
+
+      dsh plugin --profile web add -w "D:\Downloads\dsh-draw-plugin"
+
+  ⚠️ -w 不能省：profile 是 pnpm 的 workspace root，不加会报
+     ERR_PNPM_ADDING_TO_ROOT。
+
+【重启】
+  装完必须重启 DSH 的 web app（关掉再打开，或重新执行 dsh web），
+  然后刷新浏览器页面；左侧边栏会出现一个铅笔图标「画图」。
+
+【使用】
+  · 免费引擎不需要任何 Key：写提示词 → 选 Q版/正常 → 点生成。
+  · 想更接近 2D 插画风格：切到「硅基流动」并填自己的 API Key（Kolors 等）。
+  · 「固定角色」里写一段固定描述，每张图都会带上，适合反复画同一个角色。
+
+【出图目录】
+  默认 $DSH_HOME/dsh-draw（Windows 是 C:\Users\<你>\.dsh\dsh-draw）。
+  面板里的「保存到」可以改，改过会记住。
+
+【详细说明 / 常见问题】
+  见同目录下的 README.md。

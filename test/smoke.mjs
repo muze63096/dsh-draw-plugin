@@ -1,0 +1,240 @@
+/**
+ * dsh-draw-plugin — 冒烟测试
+ *
+ * 不依赖真实 DSH 运行时：把 fs / shell / webServer 三个服务 stub 成最小实现，
+ * 验证宿主半边：
+ *   1. 模块导出形状（name / inject / apply）；
+ *   2. 初始化把生成脚本写进 $DSH_HOME；
+ *   3. 两个路由都挂上，POST /dsh-draw/api 能走完整条链路（出图 + 读图）；
+ *   4. 保存位置：默认 $DSH_HOME/dsh-draw、自定义位置会被记住、写入边界跟着目录走；
+ *   5. 需要 Key 的引擎缺 Key 时明确拒绝。
+ *
+ * 运行：node test/smoke.mjs
+ */
+import assert from 'node:assert/strict'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const pkgRoot = resolve(here, '..')
+
+// 必须在 import 宿主半边之前设好：默认出图目录基于 DSH_HOME
+const FAKE_HOME = process.platform === 'win32' ? 'C:\\fake\\home' : '/fake/home'
+process.env.DSH_HOME = FAKE_HOME
+
+const WORKSPACE = process.platform === 'win32' ? 'C:\\fake\\workspace' : '/fake/workspace'
+const IMAGE_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 1, 2, 3, 4, 5])
+
+/** 记录所有写盘动作。 */
+const writes = new Map()
+/** 记录所有注册的路由。 */
+const routes = new Map()
+/** 记录所有被跑过的生成命令。 */
+const shellCalls = []
+
+function makeTarget(path) {
+  return { targetKey: path, displayPath: path }
+}
+
+function isAbsoluteish(value) {
+  return value.startsWith('/') || /^[A-Za-z]:/.test(value)
+}
+
+const fsStub = {
+  async resolve(path, opts) {
+    const cwd = (opts && opts.cwd) || WORKSPACE
+    return makeTarget(isAbsoluteish(path) ? path : join(cwd, path))
+  },
+  processPath(target) {
+    return target.displayPath
+  },
+  async writeText(target, content) {
+    writes.set(target.displayPath, content)
+    return { operation: 'create', version: 'v1', before: null, after: content }
+  },
+  async stat(target) {
+    return writes.has(target.displayPath) ? { version: 'v1', type: 'file' } : undefined
+  },
+  async readText(target) {
+    return writes.get(target.displayPath) || ''
+  },
+  async readBytes(target, signal, maxBytes) {
+    assert.ok(IMAGE_BYTES.length <= maxBytes, 'readBytes 的 maxBytes 应足够大')
+    return IMAGE_BYTES
+  },
+  async listDir() { return [] },
+  async editText() { throw new Error('unused') },
+  contains() { return false },
+  fileUrl(target) { return pathToFileURL(target.displayPath).href },
+}
+
+/** shell 服务：记录命令，直接返回一行"生成成功"的 JSON。 */
+const shellStub = {
+  resolve(request) {
+    shellCalls.push(request)
+    return {
+      command: request.command,
+      workdir: request.workdir || WORKSPACE,
+      timeoutMs: request.timeoutMs || 120000,
+      stdoutMaxBytes: request.stdoutMaxBytes || 100000,
+      stdin: request.stdin,
+      sandboxPolicy: request.sandboxPolicy,
+    }
+  },
+  async run(spec) {
+    const parsed = JSON.parse(spec.stdin)
+    const file = join(parsed.outDir, 'img-' + parsed.seed + '.jpg')
+    return {
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+      aborted: false,
+      timeoutMs: spec.timeoutMs,
+      stdout: {
+        text: JSON.stringify({ ok: true, path: file, type: 'image/jpeg', bytes: IMAGE_BYTES.length, ms: 12, attempts: 1 }),
+        truncated: false,
+      },
+      stderr: { text: '', truncated: false },
+    }
+  },
+}
+
+const webServerStub = {
+  register(route) {
+    routes.set(route.kind + ' ' + route.path, route.handler)
+    return () => routes.delete(route.kind + ' ' + route.path)
+  },
+}
+
+const services = {
+  fs: fsStub,
+  shell: shellStub,
+  webServer: webServerStub,
+  sandboxPolicy: { resolve: () => ({ mode: 'workspace-write', workspaceRoot: WORKSPACE }) },
+  // llm / agentDefaultModel 故意不给：翻译应被安全跳过
+}
+
+const ctx = {
+  get(name) { return services[name] },
+  logger: { warn() {}, error() {}, info() {} },
+  effect(callback) { callback() },
+}
+ctx.fs = fsStub
+ctx.shell = shellStub
+
+function fakeRes() {
+  return {
+    statusCode: 0,
+    headers: {},
+    body: null,
+    writeHead(code, headers) { this.statusCode = code; this.headers = headers || {}; return this },
+    end(body) { this.body = body },
+  }
+}
+
+function fakeReq(payload) {
+  const handlers = {}
+  return {
+    method: 'POST',
+    on(event, fn) { handlers[event] = fn; return this },
+    setEncoding() {},
+    destroy() {},
+    __fire() {
+      setTimeout(() => {
+        if (payload !== undefined) handlers.data(Buffer.from(JSON.stringify(payload), 'utf8'))
+        handlers.end()
+      }, 0)
+    },
+  }
+}
+
+/** 发一次请求并等它处理完。 */
+async function post(handler, payload) {
+  const req = fakeReq(payload)
+  const res = fakeRes()
+  const pending = handler(req, res)
+  req.__fire()
+  await pending
+  return { status: res.statusCode, headers: res.headers, body: res.body, json: JSON.parse(res.body) }
+}
+
+const mod = await import(pathToFileURL(join(pkgRoot, 'lib', 'index.js')).href)
+
+// 1) 导出形状
+assert.equal(mod.name, 'dsh-draw', 'name 应为 dsh-draw')
+assert.deepEqual(mod.inject, ['fs', 'shell', 'webServer'], 'inject 应为三个硬依赖')
+assert.equal(typeof mod.apply, 'function', 'apply 应为函数')
+
+// 2) 挂载（刻意不传 outDir，验证默认值）
+mod.apply(ctx, {})
+await new Promise((r) => setTimeout(r, 20))
+
+const scriptPath = join(FAKE_HOME, '.dsh-draw-gen.mjs')
+assert.ok(writes.has(scriptPath), '应把生成脚本写进 $DSH_HOME：' + scriptPath)
+const script = writes.get(scriptPath)
+assert.ok(script.includes('pollinations'), '脚本应包含 pollinations 分支')
+assert.ok(script.includes('images/generations'), '脚本应包含远程引擎分支')
+
+// 3) 路由
+assert.ok(routes.has('exact /dsh-draw/api'), '应注册 POST /dsh-draw/api')
+assert.ok(routes.has('prefix /dsh-draw/img/'), '应注册 GET /dsh-draw/img/')
+const apiHandler = routes.get('exact /dsh-draw/api')
+const imgHandler = routes.get('prefix /dsh-draw/img/')
+
+// 4) 缺省保存位置 = $DSH_HOME/dsh-draw
+const first = await post(apiHandler, {
+  engine: 'pollinations', model: 'turbo', text: '一只猫',
+  prefix: 'flat 2D anime illustration, chibi, ', background: ', pure white background',
+  translate: false, width: 1024, height: 1024,
+})
+assert.equal(first.status, 200, '出图接口应返回 200')
+assert.equal(first.json.ok, true, '出图应成功：' + first.body)
+assert.equal(first.json.outDir, join(FAKE_HOME, 'dsh-draw'), '缺省保存位置应为 $DSH_HOME/dsh-draw')
+assert.ok(first.json.url.startsWith('/dsh-draw/img/'), '应返回图片 URL')
+assert.equal(shellCalls.length, 1, '应恰好跑一次生成命令')
+assert.equal(shellCalls[0].workdir, FAKE_HOME, '命令的工作目录应为 $DSH_HOME')
+assert.equal(shellCalls[0].sandboxPolicy.workspaceRoot, FAKE_HOME, '写入边界应为保存目录的父目录')
+
+// 5) config 动作：默认值 + 尚未自定义
+const cfg1 = await post(apiHandler, { action: 'config' })
+assert.equal(cfg1.json.ok, true)
+assert.equal(cfg1.json.defaultOutDir, join(FAKE_HOME, 'dsh-draw'))
+assert.equal(cfg1.json.outDir, '', '还没自定义过，应为空')
+assert.equal(cfg1.json.resolvedOutDir, join(FAKE_HOME, 'dsh-draw'))
+
+// 6) 自定义保存位置：生效 + 被记住
+const CUSTOM = 'my-pics'
+const second = await post(apiHandler, {
+  engine: 'pollinations', model: 'turbo', text: '一只猫',
+  prefix: 'chibi, ', translate: false, width: 512, height: 512, outDir: CUSTOM,
+})
+assert.equal(second.json.ok, true, '自定义位置出图应成功：' + second.body)
+assert.equal(second.json.outDir, join(FAKE_HOME, CUSTOM), '相对路径应按 DSH_HOME 解析')
+assert.equal(shellCalls[1].sandboxPolicy.workspaceRoot, FAKE_HOME, '写入边界应跟着保存目录走')
+
+const configPath = join(FAKE_HOME, 'dsh-draw.config.json')
+assert.ok(writes.has(configPath), '应把保存位置记住到 ' + configPath)
+assert.equal(JSON.parse(writes.get(configPath)).outDir, CUSTOM, '记住的应是原样的写法')
+
+// 7) 再读 config 应返回记住的值
+const cfg2 = await post(apiHandler, { action: 'config' })
+assert.equal(cfg2.json.outDir, CUSTOM)
+assert.equal(cfg2.json.resolvedOutDir, join(FAKE_HOME, CUSTOM))
+
+// 8) 图片路由能取到刚缓存的字节
+const imgRes = fakeRes()
+imgHandler({ url: first.json.url }, imgRes)
+assert.equal(imgRes.statusCode, 200, '图片路由应返回 200')
+assert.equal(imgRes.headers['Content-Type'], 'image/jpeg', '应按真实类型返回')
+assert.deepEqual(Array.from(imgRes.body), Array.from(IMAGE_BYTES), '应返回原始字节')
+
+// 9) 缺 Key 的引擎应被明确拒绝
+const noKey = await post(apiHandler, {
+  engine: 'siliconflow', model: 'Kwai-Kolors/Kolors', text: '一只猫', translate: false,
+})
+assert.equal(noKey.json.ok, false, '缺 Key 时应失败')
+assert.ok(noKey.json.error.includes('API Key'), '错误信息应提示需要 Key：' + noKey.json.error)
+
+console.log('✓ smoke test passed')
+console.log('  导出形状 / 初始化写盘 / 两个路由 / 出图链路 / 图片读取 / 缺 Key 拒绝')
+console.log('  保存位置：默认 $DSH_HOME/dsh-draw、自定义生效并记住、写入边界随目录走')

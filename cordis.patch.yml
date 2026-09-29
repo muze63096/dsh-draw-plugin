@@ -1,0 +1,23 @@
+# dsh-draw-plugin — bundle patch layer.
+#
+# 安装到某个 profile 时（`dsh plugin --profile web add dsh-draw-plugin`，或手动放进
+# profile 的 node_modules），DSH 加载器会把这一段插入到该 profile 的根条目列表里，
+# 从而挂载插件行。
+#
+# inject 是必需的：它让 Cordis 等这三个服务就绪后再激活插件。
+# 少了它，apply 可能在 fs / shell / webServer 存在之前就跑，路由注册不上。
+#
+# config.outDir 是出图目录，相对工作区根（sandboxPolicy.resolve().workspaceRoot）；
+# 也可以写绝对路径。同一目录下还会生成：
+#   .dsh-draw-gen.mjs        生成脚本（无依赖，可直接阅读）
+#   .dsh-draw-key.txt        可选：把 API Key 写这里，面板就不用每次填
+#   .dsh-draw-init-error.txt 仅在初始化失败时出现，内容是失败原因
+- insert:
+    - id: dsh-draw
+      name: 'dsh-draw-plugin'
+      inject:
+        - fs
+        - shell
+        - webServer
+      config:
+        outDir: 'dsh-draw'

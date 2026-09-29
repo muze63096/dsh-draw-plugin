@@ -1,0 +1,55 @@
+{
+  "name": "dsh-draw-plugin",
+  "version": "0.2.0",
+  "description": "DeepSeek Harness 画图插件：侧边栏整页面板，写提示词即出图，Q版/正常两档画风，三个出图引擎可选（免费 Pollinations / 硅基流动 Kolors / 任意 OpenAI 兼容接口），Key 由使用者自己填。A text-to-image panel plugin for DeepSeek Harness with pluggable providers.",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "text-to-image",
+    "image-generation",
+    "ai-art",
+    "pollinations",
+    "siliconflow",
+    "kolors",
+    "anime",
+    "chibi"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muze63096/dsh-draw-plugin.git"
+  },
+  "homepage": "https://github.com/muze63096/dsh-draw-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/muze63096/dsh-draw-plugin/issues"
+  },
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "安装说明.txt",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "check": "node --check lib/index.js && node --check lib/client.js"
+  }
+}

@@ -1,0 +1,18 @@
+# 依赖（本插件零运行时依赖，装不上东西时不用怀疑这里）
+node_modules/
+
+# 插件在运行时写出的东西
+dsh-draw/
+.dsh-draw-gen.mjs
+.dsh-draw-init-error.txt
+
+# ⚠️ 永远不要提交 Key
+.dsh-draw-key.txt
+.env
+.env.*
+
+# 杂项
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
